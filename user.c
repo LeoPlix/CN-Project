@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
                     } else if (strncmp(buffer, "RLI REG", 7) == 0) {
                         printf("Novo utilizador registado com sucesso.\n");
                         logged_in = 1;
-                        strcpy(current_uid, arg1);
+                        strcpy(current_uid, arg1);a
                         strcpy(current_pass, arg2);
                     } else if (strncmp(buffer, "RLI NOK", 7) == 0) {
                         printf("Tentativa de login incorreta (password errada).\n");
