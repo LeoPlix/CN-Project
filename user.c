@@ -8,9 +8,9 @@
 #include <netdb.h>
 #include <string.h>
 
-// Valores por omissão (atualiza para os valores dados pelos professores)
-#define DEFAULT_DS_IP "127.0.0.1" 
-#define DEFAULT_DS_PORT "58000"
+#define INSIDE_LT5_IP "192.168.1.1"
+#define DEFAULT_DS_IP "193.136.138.142" 
+#define DEFAULT_DS_PORT "59000"
 
 int main(int argc, char *argv[]) {
     char *peerport = NULL;
