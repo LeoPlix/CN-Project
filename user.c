@@ -3,21 +3,40 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <string.h>
+#include <ctype.h>
 
 #define INSIDE_LT5_IP "192.168.1.1"
 #define DEFAULT_DS_IP "193.136.138.142" 
 #define DEFAULT_DS_PORT "59000"
+#define MAX_BUFFER 4096
+
+// Função auxiliar para ler resposta TCP até ao '\n' ou erro
+int read_tcp_line(int fd, char *buffer, int max_len) {
+    int n, total = 0;
+    char c;
+    while (total < max_len - 1) {
+        n = read(fd, &c, 1);
+        if (n > 0) {
+            buffer[total++] = c;
+            if (c == '\n') break;
+        } else {
+            break;
+        }
+    }
+    buffer[total] = '\0';
+    return total;
+}
 
 int main(int argc, char *argv[]) {
     char *peerport = NULL;
     char *dsip = DEFAULT_DS_IP;
     char *dsport = DEFAULT_DS_PORT;
 
-    // Parsing dos argumentos da linha de comandos
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-m") == 0 && i + 1 < argc) {
             peerport = argv[++i];
@@ -35,10 +54,9 @@ int main(int argc, char *argv[]) {
 
     int fd, errcode;
     struct addrinfo hints, *res;
-    char buffer[128];
-    char command[128];
+    char buffer[MAX_BUFFER];
+    char command[MAX_BUFFER];
 
-    // Configuração do socket UDP
     fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd == -1) exit(1);
 
@@ -49,14 +67,12 @@ int main(int argc, char *argv[]) {
     errcode = getaddrinfo(dsip, dsport, &hints, &res);
     if (errcode != 0) exit(1);
 
-    // Estado da sessão do utilizador
     int logged_in = 0;
     char current_uid[7] = "";
     char current_pass[9] = "";
 
     printf("NetBox User Application iniciada.\n");
 
-    // Ciclo principal de interface
     while (1) {
         printf("> ");
         if (fgets(command, sizeof(command), stdin) == NULL) break;
@@ -156,6 +172,148 @@ int main(int argc, char *argv[]) {
                 } else {
                     printf("Resposta inesperada: %s\n", buffer);
                 }
+            }
+        }
+        else if (strcmp(op, "publish") == 0) {
+            if (!logged_in) {
+                printf("Erro: Sessão não iniciada.\n");
+                continue;
+            }
+            if (num_args == 3) {
+                struct stat st;
+                if (stat(arg1, &st) == 0) {
+                    long fsize = st.st_size;
+                    if (fsize > 10000000) {
+                        printf("Erro: O ficheiro excede o tamanho máximo de 10MB.\n");
+                        continue;
+                    }
+                    sprintf(buffer, "PUB %s %s %s %ld %s\n", current_uid, current_pass, arg1, fsize, arg2);
+                    sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
+                    
+                    socklen_t addrlen = sizeof(struct sockaddr_in);
+                    struct sockaddr_in addr;
+                    int n = recvfrom(fd, buffer, sizeof(buffer)-1, 0, (struct sockaddr*)&addr, &addrlen);
+                    if (n != -1) {
+                        buffer[n] = '\0';
+                        if (strncmp(buffer, "RPB OK", 6) == 0) printf("Ficheiro publicado com sucesso.\n");
+                        else if (strncmp(buffer, "RPB NLG", 7) == 0) printf("Erro: Utilizador não logado.\n");
+                        else if (strncmp(buffer, "RPB WRP", 7) == 0) printf("Erro: Password incorreta.\n");
+                        else printf("Erro na publicação: %s\n", buffer);
+                    }
+                } else {
+                    printf("Erro: Ficheiro '%s' não encontrado no diretório local.\n", arg1);
+                }
+            } else {
+                printf("Formato inválido. Uso: publish filename label\n");
+            }
+        }
+        else if (strcmp(op, "remove") == 0) {
+            if (!logged_in) {
+                printf("Erro: Sessão não iniciada.\n");
+                continue;
+            }
+            if (num_args == 2) {
+                sprintf(buffer, "REM %s %s %s\n", current_uid, current_pass, arg1);
+                sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
+                
+                socklen_t addrlen = sizeof(struct sockaddr_in);
+                struct sockaddr_in addr;
+                int n = recvfrom(fd, buffer, sizeof(buffer)-1, 0, (struct sockaddr*)&addr, &addrlen);
+                if (n != -1) {
+                    buffer[n] = '\0';
+                    if (strncmp(buffer, "RRM OK", 6) == 0) printf("Recurso removido com sucesso.\n");
+                    else if (strncmp(buffer, "RRM NOK", 7) == 0) printf("Erro: Ficheiro não estava publicado.\n");
+                    else printf("Erro na remoção: %s\n", buffer);
+                }
+            } else {
+                printf("Formato inválido. Uso: remove filename\n");
+            }
+        }
+        else if (strcmp(op, "list") == 0) {
+            sprintf(buffer, "LST\n");
+            sendto(fd, buffer, strlen(buffer), 0, res->ai_addr, res->ai_addrlen);
+            
+            socklen_t addrlen = sizeof(struct sockaddr_in);
+            struct sockaddr_in addr;
+            int n = recvfrom(fd, buffer, sizeof(buffer)-1, 0, (struct sockaddr*)&addr, &addrlen);
+            if (n != -1) {
+                buffer[n] = '\0';
+                if (strncmp(buffer, "RLS NOK", 7) == 0) {
+                    printf("Nenhum recurso disponível na rede neste momento.\n");
+                } else if (strncmp(buffer, "RLS OK", 6) == 0) {
+                    printf("--- Ficheiros Disponíveis ---\n");
+                    // Ignorar o "RLS OK " inicial e imprimir os ficheiros
+                    char *token = strtok(buffer + 7, " \n");
+                    while (token != NULL) {
+                        printf("- %s\n", token);
+                        token = strtok(NULL, " \n");
+                    }
+                    printf("-----------------------------\n");
+                } else {
+                    printf("Resposta inesperada: %s\n", buffer);
+                }
+            }
+        }
+        else if (strcmp(op, "versions") == 0) {
+            if (num_args == 2) {
+                int tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
+                if (tcp_fd == -1) {
+                    perror("Erro ao criar socket TCP");
+                    continue;
+                }
+
+                struct addrinfo hints_tcp, *res_tcp;
+                memset(&hints_tcp, 0, sizeof hints_tcp);
+                hints_tcp.ai_family = AF_INET;
+                hints_tcp.ai_socktype = SOCK_STREAM;
+                
+                if (getaddrinfo(dsip, dsport, &hints_tcp, &res_tcp) != 0) {
+                    printf("Erro a resolver endereço do Directory Server para TCP.\n");
+                    close(tcp_fd);
+                    continue;
+                }
+
+                if (connect(tcp_fd, res_tcp->ai_addr, res_tcp->ai_addrlen) == -1) {
+                    perror("Erro na ligação TCP");
+                    freeaddrinfo(res_tcp);
+                    close(tcp_fd);
+                    continue;
+                }
+
+                sprintf(buffer, "VRS %s\n", arg1);
+                write(tcp_fd, buffer, strlen(buffer));
+
+                int n = read_tcp_line(tcp_fd, buffer, sizeof(buffer));
+                if (n > 0) {
+                    if (strncmp(buffer, "RVR NOK", 7) == 0) {
+                        printf("Nenhuma versão disponível para o ficheiro '%s'.\n", arg1);
+                    } else if (strncmp(buffer, "RVR OK", 6) == 0) {
+                        printf("--- Versões de %s ---\n", arg1);
+                        // O parsing salta o "RVR OK " inicial
+                        char *ptr = buffer + 7;
+                        char v_uid[7], v_label[21], v_time[32], v_avail[4];
+                        long v_size;
+                        
+                        // Iterar por blocos de informação de cada peer
+                        while (sscanf(ptr, "%6s %ld %20s %31s %3s", v_uid, &v_size, v_label, v_time, v_avail) == 5) {
+                            printf("Peer: %s | Tamanho: %ld bytes | Label: %s | Data: %s | Estado: %s\n",
+                                   v_uid, v_size, v_label, v_time, strcmp(v_avail, "AVL") == 0 ? "Online" : "Offline");
+                            
+                            // Avançar o ponteiro para o próximo conjunto (saltar os 5 tokens)
+                            for (int i = 0; i < 5; i++) {
+                                while (*ptr == ' ') ptr++;
+                                while (*ptr != ' ' && *ptr != '\n' && *ptr != '\0') ptr++;
+                            }
+                        }
+                    } else {
+                        printf("Resposta inesperada do DS: %s\n", buffer);
+                    }
+                }
+                
+                freeaddrinfo(res_tcp);
+                close(tcp_fd);
+            } else {
+                printf("Formato inválido. Uso: versions filename\n");
             }
         }
         else if (strcmp(op, "exit") == 0) {
