@@ -1,0 +1,5 @@
+/user
+*.dSYM/
+*.o
+*.exe
+*.txt

@@ -5,9 +5,7 @@ CFLAGS = -Wall -g
 PEERPORT = 58000
 DSIP = tejo.tecnico.ulisboa.pt
 
-all: user
-
-user: user.c
+all: user.c
 	$(CC) $(CFLAGS) -o user user.c
 
 run: user
