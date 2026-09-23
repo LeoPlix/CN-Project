@@ -15,7 +15,6 @@
 #define DEFAULT_DS_PORT "59000"
 #define MAX_BUFFER 4096
 
-// Função auxiliar para ler resposta TCP até ao '\n' ou erro
 int read_tcp_line(int fd, char *buffer, int max_len) {
     int n, total = 0;
     char c;
@@ -242,7 +241,6 @@ int main(int argc, char *argv[]) {
                     printf("Nenhum recurso disponível na rede neste momento.\n");
                 } else if (strncmp(buffer, "RLS OK", 6) == 0) {
                     printf("--- Ficheiros Disponíveis ---\n");
-                    // Ignorar o "RLS OK " inicial e imprimir os ficheiros
                     char *token = strtok(buffer + 7, " \n");
                     while (token != NULL) {
                         printf("- %s\n", token);
@@ -289,17 +287,14 @@ int main(int argc, char *argv[]) {
                         printf("Nenhuma versão disponível para o ficheiro '%s'.\n", arg1);
                     } else if (strncmp(buffer, "RVR OK", 6) == 0) {
                         printf("--- Versões de %s ---\n", arg1);
-                        // O parsing salta o "RVR OK " inicial
                         char *ptr = buffer + 7;
                         char v_uid[7], v_label[21], v_time[32], v_avail[4];
                         long v_size;
                         
-                        // Iterar por blocos de informação de cada peer
                         while (sscanf(ptr, "%6s %ld %20s %31s %3s", v_uid, &v_size, v_label, v_time, v_avail) == 5) {
                             printf("Peer: %s | Tamanho: %ld bytes | Label: %s | Data: %s | Estado: %s\n",
                                    v_uid, v_size, v_label, v_time, strcmp(v_avail, "AVL") == 0 ? "Online" : "Offline");
                             
-                            // Avançar o ponteiro para o próximo conjunto (saltar os 5 tokens)
                             for (int i = 0; i < 5; i++) {
                                 while (*ptr == ' ') ptr++;
                                 while (*ptr != ' ' && *ptr != '\n' && *ptr != '\0') ptr++;
