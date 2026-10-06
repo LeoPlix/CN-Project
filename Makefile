@@ -3,7 +3,6 @@ CFLAGS = -Wall -Wextra -g
 
 # Variáveis para a execução
 PEERPORT = 58000
-DSIP = tejo.tecnico.ulisboa.pt
 
 SRC = user.c net_utils.c user_commands.c
 OBJ = $(SRC:.c=.o)
