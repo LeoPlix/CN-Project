@@ -17,7 +17,7 @@ $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(TARGET)
-	./$(TARGET) -m $(PEERPORT) -n $(DSIP)
+	./$(TARGET) -m $(PEERPORT)
 
 clean:
 	rm -f $(OBJ) $(TARGET)

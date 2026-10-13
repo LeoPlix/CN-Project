@@ -12,6 +12,8 @@
 #include <netdb.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <sys/time.h>
 
 #define INSIDE_LT5_IP "192.168.1.1"
 #define DEFAULT_DS_IP "193.136.138.142"

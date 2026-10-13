@@ -4,13 +4,11 @@
 make clean
 make all
 
-# Executar a aplicação com os parâmetros definidos no Makefile (Porto 58000 e DS tejo.tecnico.ulisboa.pt)
+# Executar a aplicação com os parâmetros definidos no Makefile
 make run
 
 # Publish
 publish testfile.txt 1080p
-
-publish ficheiro_falso.txt 720p
 
 # Sessão
 
