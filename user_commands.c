@@ -489,7 +489,6 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
             return;
         }
     } else {
-        // If versions for this filename are not yet cached, fetch them automatically from DS
         if (!v_cache || strcmp(v_cache->filename, filename) != 0 || v_cache->count == 0) {
             fetch_versions(dsip, dsport, filename, v_cache, 0);
         }
@@ -604,7 +603,6 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
 
     fclose(fp);
 
-    // Consume optional trailing newline if present
     char trailing;
     struct timeval tv_short = {.tv_sec = 0, .tv_usec = 100000};
     setsockopt(tcp_fd, SOL_SOCKET, SO_RCVTIMEO, &tv_short, sizeof(tv_short));

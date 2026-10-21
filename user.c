@@ -51,7 +51,6 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // Ignorar sinais para evitar crashes no TCP e processos zombie no fork
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);
 
