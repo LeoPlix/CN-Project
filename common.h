@@ -30,14 +30,6 @@ typedef struct {
 } SessionState;
 
 typedef struct {
-    int valid;
-    char filename[25];
-    char uid[7];
-    char ip[64];
-    char port[16];
-} LocatedPeer;
-
-typedef struct {
     char uid[7];
     long size;
     char label[21];

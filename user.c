@@ -118,9 +118,6 @@ int main(int argc, char *argv[]) {
     memset(&session, 0, sizeof(session));
     strncpy(session.peerport, peerport, sizeof(session.peerport) - 1);
 
-    LocatedPeer located_peer;
-    memset(&located_peer, 0, sizeof(located_peer));
-
     VersionsCache versions_cache;
     memset(&versions_cache, 0, sizeof(versions_cache));
 
@@ -177,10 +174,8 @@ int main(int argc, char *argv[]) {
                 handle_list(fd, res, num_args);
             } else if (strcmp(op, "versions") == 0) {
                 handle_versions(dsip, dsport, arg1, num_args, &versions_cache);
-            } else if (strcmp(op, "where") == 0) {
-                handle_where(fd, res, &located_peer, arg1, arg2, num_args);
             } else if (strcmp(op, "get") == 0) {
-                handle_get(fd, res, &located_peer, &versions_cache, arg1, arg2, num_args);
+                handle_get(fd, res, dsip, dsport, &versions_cache, arg1, arg2, num_args);
             } else if (strcmp(op, "exit") == 0) {
                 if (num_args != 1) {
                     printf("Usage: exit\n");

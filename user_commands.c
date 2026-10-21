@@ -254,22 +254,13 @@ void handle_list(int fd, struct addrinfo *res, int num_args) {
     }
 }
 
-void handle_versions(const char *dsip, const char *dsport, const char *filename, int num_args, VersionsCache *cache) {
+static int fetch_versions(const char *dsip, const char *dsport, const char *filename, VersionsCache *cache, int print_output) {
     char buffer[MAX_BUFFER];
-
-    if (num_args != 2) {
-        printf("Usage: versions <filename>\n");
-        return;
-    }
-    if (!is_valid_filename(filename)) {
-        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
-        return;
-    }
 
     int tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (tcp_fd == -1) {
-        perror("socket");
-        return;
+        if (print_output) perror("socket");
+        return -1;
     }
 
     struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
@@ -282,36 +273,38 @@ void handle_versions(const char *dsip, const char *dsport, const char *filename,
     hints_tcp.ai_socktype = SOCK_STREAM;
 
     if (getaddrinfo(dsip, dsport, &hints_tcp, &res_tcp) != 0) {
-        fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
+        if (print_output) fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
         close(tcp_fd);
-        return;
+        return -1;
     }
 
     if (connect(tcp_fd, res_tcp->ai_addr, res_tcp->ai_addrlen) == -1) {
-        perror("connect");
+        if (print_output) perror("connect");
         freeaddrinfo(res_tcp);
         close(tcp_fd);
-        return;
+        return -1;
     }
 
     sprintf(buffer, "VRS %s\n", filename);
     if (write(tcp_fd, buffer, strlen(buffer)) == -1) {
-        perror("write");
+        if (print_output) perror("write");
         freeaddrinfo(res_tcp);
         close(tcp_fd);
-        return;
+        return -1;
     }
 
     int n = read_tcp_line(tcp_fd, buffer, sizeof(buffer));
+    int res = -1;
     if (n > 0) {
         if (strncmp(buffer, "RVR NOK", 7) == 0) {
-            printf("No versions available for '%s'\n", filename);
-            if (cache) {
-                cache->count = 0;
-            }
+            if (print_output) printf("No versions available for '%s'\n", filename);
+            if (cache) cache->count = 0;
+            res = 0;
         } else if (strncmp(buffer, "RVR OK", 6) == 0) {
-            printf("Available versions for '%s':\n", filename);
-            printf("%-8s %-10s %-16s %-20s %s\n", "UID", "Size", "Label", "Date", "Status");
+            if (print_output) {
+                printf("Available versions for '%s':\n", filename);
+                printf("%-8s %-10s %-16s %-20s %s\n", "UID", "Size", "Label", "Date", "Status");
+            }
             char *ptr = buffer + 6;
             char v_uid[7], v_label[21], v_time[32], v_avail[4];
             long v_size;
@@ -326,7 +319,9 @@ void handle_versions(const char *dsip, const char *dsport, const char *filename,
             while (sscanf(ptr, "%6s %ld %20s %31s %3s", v_uid, &v_size, v_label, v_time, v_avail) == 5) {
                 count++;
                 const char *status_str = (strcmp(v_avail, "AVL") == 0) ? "Online" : "Offline";
-                printf("%-8s %-10ld %-16s %-20s %s\n", v_uid, v_size, v_label, v_time, status_str);
+                if (print_output) {
+                    printf("%-8s %-10ld %-16s %-20s %s\n", v_uid, v_size, v_label, v_time, status_str);
+                }
 
                 if (cache && cache->count < 50) {
                     strncpy(cache->versions[cache->count].uid, v_uid, 6);
@@ -346,20 +341,35 @@ void handle_versions(const char *dsip, const char *dsport, const char *filename,
                     while (*ptr != ' ' && *ptr != '\n' && *ptr != '\0') ptr++;
                 }
             }
-            if (count == 0) {
+            if (count == 0 && print_output) {
                 printf("No versions available for '%s'\n", filename);
             }
+            res = count;
         } else if (strncmp(buffer, "RVR ERR", 7) == 0) {
-            printf("Error: Protocol syntax error\n");
+            if (print_output) printf("Error: Protocol syntax error\n");
         } else {
-            printf("Unexpected response: %s\n", buffer);
+            if (print_output) printf("Unexpected response: %s\n", buffer);
         }
     } else {
-        printf("Error: Failed to receive response from DS\n");
+        if (print_output) printf("Error: Failed to receive response from DS\n");
     }
 
     freeaddrinfo(res_tcp);
     close(tcp_fd);
+    return res;
+}
+
+void handle_versions(const char *dsip, const char *dsport, const char *filename, int num_args, VersionsCache *cache) {
+    if (num_args != 2) {
+        printf("Usage: versions <filename>\n");
+        return;
+    }
+    if (!is_valid_filename(filename)) {
+        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
+        return;
+    }
+
+    fetch_versions(dsip, dsport, filename, cache, 1);
 }
 
 static int query_whr(int fd, struct addrinfo *res, const char *filename, const char *uid, char *ip_out, char *port_out) {
@@ -389,37 +399,6 @@ static int query_whr(int fd, struct addrinfo *res, const char *filename, const c
     } else {
         printf("Unexpected response: %s\n", buffer);
         return -1;
-    }
-}
-
-void handle_where(int fd, struct addrinfo *res, LocatedPeer *located_peer, const char *filename, const char *uid, int num_args) {
-    if (num_args != 3) {
-        printf("Usage: where <filename> <UID>\n");
-        return;
-    }
-    if (!is_valid_filename(filename)) {
-        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
-        return;
-    }
-    if (!is_valid_uid(uid)) {
-        printf("Error: Invalid UID (must be exactly 6 decimal digits)\n");
-        return;
-    }
-
-    char ip[64] = "", port[16] = "";
-    if (query_whr(fd, res, filename, uid, ip, port) == 0) {
-        if (located_peer) {
-            located_peer->valid = 1;
-            strncpy(located_peer->filename, filename, sizeof(located_peer->filename) - 1);
-            located_peer->filename[sizeof(located_peer->filename) - 1] = '\0';
-            strncpy(located_peer->uid, uid, sizeof(located_peer->uid) - 1);
-            located_peer->uid[sizeof(located_peer->uid) - 1] = '\0';
-            strncpy(located_peer->ip, ip, sizeof(located_peer->ip) - 1);
-            located_peer->ip[sizeof(located_peer->ip) - 1] = '\0';
-            strncpy(located_peer->port, port, sizeof(located_peer->port) - 1);
-            located_peer->port[sizeof(located_peer->port) - 1] = '\0';
-        }
-        printf("Resource '%s' hosted by user %s is available at IP %s, port %s\n", filename, uid, ip, port);
     }
 }
 
@@ -470,9 +449,9 @@ static int read_rgt_header(int tcp_fd, char *status, long *fsize) {
     return -1;
 }
 
-void handle_get(int udp_fd, struct addrinfo *ds_res, LocatedPeer *located_peer, VersionsCache *v_cache, const char *filename, const char *arg_uid, int num_args) {
+void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const char *dsport, VersionsCache *v_cache, const char *filename, const char *arg_uid, int num_args) {
     if (num_args < 2 || num_args > 3) {
-        printf("Usage: get <filename> [UID]\n");
+        printf("Usage: get <filename>\n");
         return;
     }
     if (!is_valid_filename(filename)) {
@@ -482,7 +461,6 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, LocatedPeer *located_peer, 
 
     char target_ip[64] = "";
     char target_port[16] = "";
-    char target_uid[7] = "";
     int peer_found = 0;
 
     if (num_args == 3) {
@@ -492,36 +470,20 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, LocatedPeer *located_peer, 
         }
         if (query_whr(udp_fd, ds_res, filename, arg_uid, target_ip, target_port) == 0) {
             peer_found = 1;
-            strncpy(target_uid, arg_uid, sizeof(target_uid) - 1);
-            if (located_peer) {
-                located_peer->valid = 1;
-                strncpy(located_peer->filename, filename, sizeof(located_peer->filename) - 1);
-                strncpy(located_peer->uid, arg_uid, sizeof(located_peer->uid) - 1);
-                strncpy(located_peer->ip, target_ip, sizeof(located_peer->ip) - 1);
-                strncpy(located_peer->port, target_port, sizeof(located_peer->port) - 1);
-            }
         } else {
             return;
         }
     } else {
-        if (located_peer && located_peer->valid && strcmp(located_peer->filename, filename) == 0) {
-            strncpy(target_ip, located_peer->ip, sizeof(target_ip) - 1);
-            strncpy(target_port, located_peer->port, sizeof(target_port) - 1);
-            strncpy(target_uid, located_peer->uid, sizeof(target_uid) - 1);
-            peer_found = 1;
-        } else if (v_cache && strcmp(v_cache->filename, filename) == 0 && v_cache->count > 0) {
+        // If versions for this filename are not yet cached, fetch them automatically from DS
+        if (!v_cache || strcmp(v_cache->filename, filename) != 0 || v_cache->count == 0) {
+            fetch_versions(dsip, dsport, filename, v_cache, 0);
+        }
+
+        if (v_cache && strcmp(v_cache->filename, filename) == 0 && v_cache->count > 0) {
             for (int i = 0; i < v_cache->count; i++) {
                 if (strcmp(v_cache->versions[i].avail, "AVL") == 0) {
                     if (query_whr(udp_fd, ds_res, filename, v_cache->versions[i].uid, target_ip, target_port) == 0) {
                         peer_found = 1;
-                        strncpy(target_uid, v_cache->versions[i].uid, sizeof(target_uid) - 1);
-                        if (located_peer) {
-                            located_peer->valid = 1;
-                            strncpy(located_peer->filename, filename, sizeof(located_peer->filename) - 1);
-                            strncpy(located_peer->uid, target_uid, sizeof(located_peer->uid) - 1);
-                            strncpy(located_peer->ip, target_ip, sizeof(located_peer->ip) - 1);
-                            strncpy(located_peer->port, target_port, sizeof(located_peer->port) - 1);
-                        }
                         break;
                     }
                 }
@@ -529,7 +491,7 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, LocatedPeer *located_peer, 
         }
 
         if (!peer_found) {
-            printf("Error: No peer known for '%s'. Please run 'where %s <UID>' first\n", filename, filename);
+            printf("Error: No available peer found for '%s'\n", filename);
             return;
         }
     }
