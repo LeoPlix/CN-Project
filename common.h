@@ -20,7 +20,7 @@
 #define INSIDE_LT5_IP "192.168.1.1"
 #define DEFAULT_DS_IP "193.136.138.142"
 #define DEFAULT_DS_PORT "59000"
-#define MAX_BUFFER 4096
+#define MAX_BUFFER 16384
 
 typedef struct {
     int logged_in;
@@ -43,5 +43,4 @@ typedef struct {
     VersionEntry versions[50];
 } VersionsCache;
 
-#endif // COMMON_H
-
+#endif 

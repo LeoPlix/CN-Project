@@ -2,25 +2,40 @@
 #include "net_utils.h"
 
 static int send_udp_msg(int fd, struct addrinfo *res, const char *msg, char *reply, int reply_size) {
-    if (sendto(fd, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen) == -1) {
-        perror("sendto");
-        return -1;
-    }
+    int max_retries = 3;
+    int retries = 0;
+    int n = -1;
 
-    socklen_t addrlen = sizeof(struct sockaddr_in);
-    struct sockaddr_in addr;
-    int n = recvfrom(fd, reply, reply_size - 1, 0, (struct sockaddr *)&addr, &addrlen);
-    if (n == -1) {
+    while (retries < max_retries) {
+        if (sendto(fd, msg, strlen(msg), 0, res->ai_addr, res->ai_addrlen) == -1) {
+            perror("sendto");
+            return -1;
+        }
+
+        socklen_t addrlen = sizeof(struct sockaddr_in);
+        struct sockaddr_in addr;
+        n = recvfrom(fd, reply, reply_size - 1, 0, (struct sockaddr *)&addr, &addrlen);
+        
+        if (n != -1) {
+            // Sucesso na receção
+            reply[n] = '\0';
+            return n;
+        }
+
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            printf("Error: Server response timed out\n");
+            retries++;
+            if (retries < max_retries) {
+                printf("Timeout: A tentar novamente... (tentativa %d de %d)\n", retries + 1, max_retries);
+            } else {
+                printf("Error: Server response timed out after %d attempts\n", max_retries);
+                return -1;
+            }
         } else {
             perror("recvfrom");
+            return -1;
         }
-        return -1;
     }
-
-    reply[n] = '\0';
-    return n;
+    return -1;
 }
 
 void handle_login(int fd, struct addrinfo *res, SessionState *session, const char *arg1, const char *arg2, int num_args) {
@@ -670,6 +685,3 @@ void handle_peer_request(int conn_fd) {
     }
     close(conn_fd);
 }
-
-
-

@@ -29,3 +29,9 @@ versions testfile.txt
 # Download de Ficheiro
 get testfile.txt
 get testfile.txt 157498
+
+# Para a fase III:
+    # Num primeiro terminal entrar com o port 58000 -> fazer login e publish
+    # Num segundo terminal entrar com o path
+    /Users/manuelsoares/Desktop/tekas/3ano/semestre1/RC/project/CN-Project/user -m 58001
+    

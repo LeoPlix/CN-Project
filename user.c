@@ -51,7 +51,9 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    // Ignorar sinais para evitar crashes no TCP e processos zombie no fork
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGCHLD, SIG_IGN);
 
     int fd, errcode;
     struct addrinfo hints, *res;
@@ -143,12 +145,26 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        // Lidar com pedidos de transferência de ficheiros usando processos paralelos
         if (FD_ISSET(tcp_server_fd, &read_fds)) {
             struct sockaddr_in client_addr;
             socklen_t client_len = sizeof(client_addr);
             int conn_fd = accept(tcp_server_fd, (struct sockaddr *)&client_addr, &client_len);
+            
             if (conn_fd != -1) {
-                handle_peer_request(conn_fd);
+                pid_t pid = fork();
+                if (pid < 0) {
+                    perror("fork");
+                    close(conn_fd);
+                } else if (pid == 0) {
+                    // Processo Filho: gere o download
+                    close(tcp_server_fd); // Filho não precisa do socket de escuta
+                    handle_peer_request(conn_fd);
+                    exit(0); // Termina imediatamente após a transferência
+                } else {
+                    // Processo Pai: fecha o socket do cliente e volta para o select()
+                    close(conn_fd);
+                }
             }
         }
 
