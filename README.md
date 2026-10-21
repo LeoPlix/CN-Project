@@ -25,3 +25,10 @@ remove testfile.txt
 
 # Versões
 versions testfile.txt
+
+# Localizar Recurso / Peer (Phase III)
+where testfile.txt 157498
+
+# Download de Ficheiro (Phase III)
+get testfile.txt
+get testfile.txt 157498

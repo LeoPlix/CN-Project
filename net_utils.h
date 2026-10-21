@@ -4,6 +4,8 @@
 #include "common.h"
 
 int read_tcp_line(int fd, char *buffer, int max_len);
+int write_all(int fd, const void *buf, size_t len);
+int read_all(int fd, void *buf, size_t len);
 
 int is_valid_uid(const char *uid);
 int is_valid_password(const char *pass);

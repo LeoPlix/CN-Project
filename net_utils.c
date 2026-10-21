@@ -11,6 +11,7 @@ int read_tcp_line(int fd, char *buffer, int max_len) {
         } else if (n == 0) {
             break;
         } else {
+            if (errno == EINTR) continue;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 fprintf(stderr, "Error: TCP read timed out\n");
             } else {
@@ -22,6 +23,39 @@ int read_tcp_line(int fd, char *buffer, int max_len) {
     buffer[total] = '\0';
     return total;
 }
+
+int write_all(int fd, const void *buf, size_t len) {
+    size_t total = 0;
+    const char *p = (const char *)buf;
+    while (total < len) {
+        ssize_t n = write(fd, p + total, len - total);
+        if (n <= 0) {
+            if (n < 0 && (errno == EINTR || errno == EAGAIN)) {
+                continue;
+            }
+            return -1;
+        }
+        total += (size_t)n;
+    }
+    return 0;
+}
+
+int read_all(int fd, void *buf, size_t len) {
+    size_t total = 0;
+    char *p = (char *)buf;
+    while (total < len) {
+        ssize_t n = read(fd, p + total, len - total);
+        if (n <= 0) {
+            if (n < 0 && (errno == EINTR || errno == EAGAIN)) {
+                continue;
+            }
+            return -1;
+        }
+        total += (size_t)n;
+    }
+    return 0;
+}
+
 
 int is_valid_uid(const char *uid) {
     if (!uid || strlen(uid) != 6) return 0;

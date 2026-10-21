@@ -14,6 +14,8 @@
 #include <ctype.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <sys/select.h>
+#include <signal.h>
 
 #define INSIDE_LT5_IP "192.168.1.1"
 #define DEFAULT_DS_IP "193.136.138.142"
@@ -27,4 +29,27 @@ typedef struct {
     char peerport[16];
 } SessionState;
 
+typedef struct {
+    int valid;
+    char filename[25];
+    char uid[7];
+    char ip[64];
+    char port[16];
+} LocatedPeer;
+
+typedef struct {
+    char uid[7];
+    long size;
+    char label[21];
+    char time[32];
+    char avail[4];
+} VersionEntry;
+
+typedef struct {
+    char filename[25];
+    int count;
+    VersionEntry versions[50];
+} VersionsCache;
+
 #endif // COMMON_H
+
