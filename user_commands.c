@@ -25,7 +25,7 @@ static int send_udp_msg(int fd, struct addrinfo *res, const char *msg, char *rep
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             retries++;
             if (retries < max_retries) {
-                printf("Timeout: A tentar novamente... (tentativa %d de %d)\n", retries + 1, max_retries);
+                printf("Timeout: Retrying... (attempt %d of %d)\n", retries + 1, max_retries);
             } else {
                 printf("Error: Server response timed out after %d attempts\n", max_retries);
                 return -1;
@@ -301,7 +301,7 @@ static int fetch_versions(const char *dsip, const char *dsport, const char *file
     }
 
     sprintf(buffer, "VRS %s\n", filename);
-    if (write(tcp_fd, buffer, strlen(buffer)) == -1) {
+    if (write_all(tcp_fd, buffer, strlen(buffer)) == -1) {
         if (print_output) perror("write");
         freeaddrinfo(res_tcp);
         close(tcp_fd);
@@ -331,7 +331,35 @@ static int fetch_versions(const char *dsip, const char *dsport, const char *file
                 cache->count = 0;
             }
 
-            while (sscanf(ptr, "%6s %ld %20s %31s %3s", v_uid, &v_size, v_label, v_time, v_avail) == 5) {
+            while (1) {
+                char tok4[16] = "", tok5[16] = "", tok6[16] = "";
+                int tokens_consumed = 0;
+                int matched = sscanf(ptr, "%6s %ld %20s %15s %15s %15s", v_uid, &v_size, v_label, tok4, tok5, tok6);
+                if (matched >= 5) {
+                    if (strcmp(tok5, "AVL") == 0 || strcmp(tok5, "NAV") == 0) {
+                        // Single-token publication_time (e.g. YYYY-MM-DD or YYYY-MM-DD_HH:MM:SS)
+                        strncpy(v_time, tok4, sizeof(v_time) - 1);
+                        v_time[sizeof(v_time) - 1] = '\0';
+                        strncpy(v_avail, tok5, sizeof(v_avail) - 1);
+                        v_avail[sizeof(v_avail) - 1] = '\0';
+                        tokens_consumed = 5;
+                    } else if (matched >= 6 && (strcmp(tok6, "AVL") == 0 || strcmp(tok6, "NAV") == 0)) {
+                        // Two-token publication_time: tok4 is Date, tok5 is Time
+                        snprintf(v_time, sizeof(v_time), "%s %s", tok4, tok5);
+                        strncpy(v_avail, tok6, sizeof(v_avail) - 1);
+                        v_avail[sizeof(v_avail) - 1] = '\0';
+                        tokens_consumed = 6;
+                    } else {
+                        strncpy(v_time, tok4, sizeof(v_time) - 1);
+                        v_time[sizeof(v_time) - 1] = '\0';
+                        strncpy(v_avail, tok5, sizeof(v_avail) - 1);
+                        v_avail[sizeof(v_avail) - 1] = '\0';
+                        tokens_consumed = 5;
+                    }
+                } else {
+                    break;
+                }
+
                 count++;
                 const char *status_str = (strcmp(v_avail, "AVL") == 0) ? "Online" : "Offline";
                 if (print_output) {
@@ -351,7 +379,7 @@ static int fetch_versions(const char *dsip, const char *dsport, const char *file
                     cache->count++;
                 }
 
-                for (int i = 0; i < 5; i++) {
+                for (int i = 0; i < tokens_consumed; i++) {
                     while (*ptr == ' ') ptr++;
                     while (*ptr != ' ' && *ptr != '\n' && *ptr != '\0') ptr++;
                 }
