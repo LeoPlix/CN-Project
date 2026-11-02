@@ -14,13 +14,11 @@
 #include <ctype.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <sys/select.h>
-#include <signal.h>
 
 #define INSIDE_LT5_IP "192.168.1.1"
 #define DEFAULT_DS_IP "193.136.138.142"
 #define DEFAULT_DS_PORT "59000"
-#define MAX_BUFFER 16384
+#define MAX_BUFFER 4096
 
 typedef struct {
     int logged_in;
@@ -29,18 +27,4 @@ typedef struct {
     char peerport[16];
 } SessionState;
 
-typedef struct {
-    char uid[7];
-    long size;
-    char label[21];
-    char time[32];
-    char avail[4];
-} VersionEntry;
-
-typedef struct {
-    char filename[25];
-    int count;
-    VersionEntry versions[50];
-} VersionsCache;
-
-#endif 
+#endif // COMMON_H
