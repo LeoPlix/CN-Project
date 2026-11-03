@@ -23,6 +23,52 @@ static int send_udp_msg(int fd, struct addrinfo *res, const char *msg, char *rep
     return n;
 }
 
+static int send_tcp_msg(const char *ip, const char *port, const char *msg, char *reply, int reply_size) {
+    struct addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (getaddrinfo(ip, port, &hints, &res) != 0) {
+        fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
+        return -1;
+    }
+
+    int tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (tcp_fd == -1) {
+        perror("socket");
+        freeaddrinfo(res);
+        return -1;
+    }
+
+    struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
+    setsockopt(tcp_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(tcp_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    if (connect(tcp_fd, res->ai_addr, res->ai_addrlen) == -1) {
+        perror("connect");
+        freeaddrinfo(res);
+        close(tcp_fd);
+        return -1;
+    }
+
+    if (write(tcp_fd, msg, strlen(msg)) == -1) {
+        perror("write");
+        freeaddrinfo(res);
+        close(tcp_fd);
+        return -1;
+    }
+
+    int n = read_tcp_line(tcp_fd, reply, reply_size);
+    if (n <= 0) {
+        printf("Error: Failed to receive response from DS\n");
+    }
+
+    freeaddrinfo(res);
+    close(tcp_fd);
+    return n;
+}
+
 void handle_login(int fd, struct addrinfo *res, SessionState *session, const char *arg1, const char *arg2, int num_args) {
     char buffer[MAX_BUFFER];
 
@@ -266,76 +312,37 @@ void handle_versions(const char *dsip, const char *dsport, const char *filename,
         return;
     }
 
-    int tcp_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (tcp_fd == -1) {
-        perror("socket");
-        return;
-    }
-
-    struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
-    setsockopt(tcp_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(tcp_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-
-    struct addrinfo hints_tcp, *res_tcp;
-    memset(&hints_tcp, 0, sizeof hints_tcp);
-    hints_tcp.ai_family = AF_INET;
-    hints_tcp.ai_socktype = SOCK_STREAM;
-
-    if (getaddrinfo(dsip, dsport, &hints_tcp, &res_tcp) != 0) {
-        fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
-        close(tcp_fd);
-        return;
-    }
-
-    if (connect(tcp_fd, res_tcp->ai_addr, res_tcp->ai_addrlen) == -1) {
-        perror("connect");
-        freeaddrinfo(res_tcp);
-        close(tcp_fd);
-        return;
-    }
-
     sprintf(buffer, "VRS %s\n", filename);
-    if (write(tcp_fd, buffer, strlen(buffer)) == -1) {
-        perror("write");
-        freeaddrinfo(res_tcp);
-        close(tcp_fd);
+    if (send_tcp_msg(dsip, dsport, buffer, buffer, sizeof(buffer)) <= 0) {
         return;
     }
 
-    int n = read_tcp_line(tcp_fd, buffer, sizeof(buffer));
-    if (n > 0) {
-        if (strncmp(buffer, "RVR NOK", 7) == 0) {
-            printf("No versions available for '%s'\n", filename);
-        } else if (strncmp(buffer, "RVR OK", 6) == 0) {
-            printf("Available versions for '%s':\n", filename);
-            printf("%-8s %-10s %-16s %-20s %s\n", "UID", "Size", "Label", "Date", "Status");
-            char *ptr = buffer + 6;
-            char v_uid[7], v_label[21], v_time[32], v_avail[4];
-            long v_size;
-            int count = 0;
+    if (strncmp(buffer, "RVR NOK", 7) == 0) {
+        printf("No versions available for '%s'\n", filename);
+    } else if (strncmp(buffer, "RVR OK", 6) == 0) {
+        printf("Available versions for '%s':\n", filename);
+        printf("%-8s %-10s %-16s %-20s %s\n", "UID", "Size", "Label", "Date", "Status");
+        char *ptr = buffer + 6;
+        char v_uid[7], v_label[21], v_time[32], v_avail[4];
+        long v_size;
+        int count = 0;
 
-            while (sscanf(ptr, "%6s %ld %20s %31s %3s", v_uid, &v_size, v_label, v_time, v_avail) == 5) {
-                count++;
-                const char *status_str = (strcmp(v_avail, "AVL") == 0) ? "Online" : "Offline";
-                printf("%-8s %-10ld %-16s %-20s %s\n", v_uid, v_size, v_label, v_time, status_str);
+        while (sscanf(ptr, "%6s %ld %20s %31s %3s", v_uid, &v_size, v_label, v_time, v_avail) == 5) {
+            count++;
+            const char *status_str = (strcmp(v_avail, "AVL") == 0) ? "Online" : "Offline";
+            printf("%-8s %-10ld %-16s %-20s %s\n", v_uid, v_size, v_label, v_time, status_str);
 
-                for (int i = 0; i < 5; i++) {
-                    while (*ptr == ' ') ptr++;
-                    while (*ptr != ' ' && *ptr != '\n' && *ptr != '\0') ptr++;
-                }
+            for (int i = 0; i < 5; i++) {
+                while (*ptr == ' ') ptr++;
+                while (*ptr != ' ' && *ptr != '\n' && *ptr != '\0') ptr++;
             }
-            if (count == 0) {
-                printf("No versions available for '%s'\n", filename);
-            }
-        } else if (strncmp(buffer, "RVR ERR", 7) == 0) {
-            printf("Error: Protocol syntax error\n");
-        } else {
-            printf("Unexpected response: %s\n", buffer);
         }
+        if (count == 0) {
+            printf("No versions available for '%s'\n", filename);
+        }
+    } else if (strncmp(buffer, "RVR ERR", 7) == 0) {
+        printf("Error: Protocol syntax error\n");
     } else {
-        printf("Error: Failed to receive response from DS\n");
+        printf("Unexpected response: %s\n", buffer);
     }
-
-    freeaddrinfo(res_tcp);
-    close(tcp_fd);
 }
