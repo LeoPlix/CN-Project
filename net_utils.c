@@ -23,6 +23,42 @@ int read_tcp_line(int fd, char *buffer, int max_len) {
     return total;
 }
 
+int init_udp_client(const char *ip, const char *port, int *fd, struct addrinfo **res) {
+    *fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (*fd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
+    if (setsockopt(*fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        perror("setsockopt SO_RCVTIMEO");
+    }
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    if (getaddrinfo(ip, port, &hints, res) != 0) {
+        fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
+        close(*fd);
+        *fd = -1;
+        return -1;
+    }
+
+    return 0;
+}
+
+void close_udp_client(int fd, struct addrinfo *res) {
+    if (res) {
+        freeaddrinfo(res);
+    }
+    if (fd != -1) {
+        close(fd);
+    }
+}
+
 int is_valid_uid(const char *uid) {
     if (!uid || strlen(uid) != 6) return 0;
     for (int i = 0; i < 6; i++) {

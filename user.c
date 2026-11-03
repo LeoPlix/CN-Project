@@ -51,29 +51,11 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    int fd, errcode;
-    struct addrinfo hints, *res;
+    int fd;
+    struct addrinfo *res = NULL;
     char command[MAX_BUFFER];
 
-    fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (fd == -1) {
-        perror("socket");
-        exit(1);
-    }
-
-    struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
-    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        perror("setsockopt SO_RCVTIMEO");
-    }
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
-
-    errcode = getaddrinfo(dsip, dsport, &hints, &res);
-    if (errcode != 0) {
-        fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
-        close(fd);
+    if (init_udp_client(dsip, dsport, &fd, &res) != 0) {
         exit(1);
     }
 
@@ -117,7 +99,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    freeaddrinfo(res);
-    close(fd);
+    close_udp_client(fd, res);
     return 0;
 }
