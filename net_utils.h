@@ -4,6 +4,8 @@
 #include "common.h"
 
 int read_tcp_line(int fd, char *buffer, int max_len);
+int write_all(int fd, const void *buf, size_t len);
+int read_all(int fd, void *buf, size_t len);
 int init_udp_client(const char *ip, const char *port, int *fd, struct addrinfo **res);
 void close_udp_client(int fd, struct addrinfo *res);
 
