@@ -474,52 +474,6 @@ static int query_whr(int fd, struct addrinfo *res, const char *filename, const c
     }
 }
 
-void handle_where(int fd, struct addrinfo *res, const char *dsip, const char *dsport, VersionsCache *cache, const char *filename, const char *arg_uid, int num_args) {
-    if (num_args < 2 || num_args > 3) {
-        printf("Usage: where <filename> [UID]\n");
-        return;
-    }
-    if (!is_valid_filename(filename)) {
-        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
-        return;
-    }
-
-    char ip[64] = "", port[16] = "";
-
-    if (num_args == 3) {
-        if (!is_valid_uid(arg_uid)) {
-            printf("Error: Invalid UID (must be exactly 6 decimal digits)\n");
-            return;
-        }
-        if (query_whr(fd, res, filename, arg_uid, ip, port, 1) == 0) {
-            printf("File '%s' (user %s) is available at %s:%s\n", filename, arg_uid, ip, port);
-        }
-        return;
-    }
-
-    // num_args == 2: automatically find an available publisher
-    if (!cache || strcmp(cache->filename, filename) != 0 || cache->count == 0) {
-        fetch_versions(dsip, dsport, filename, cache, 0);
-    }
-
-    int found = 0;
-    if (cache && strcmp(cache->filename, filename) == 0 && cache->count > 0) {
-        for (int i = 0; i < cache->count; i++) {
-            if (strcmp(cache->versions[i].avail, "AVL") == 0) {
-                if (query_whr(fd, res, filename, cache->versions[i].uid, ip, port, 0) == 0) {
-                    printf("File '%s' (user %s) is available at %s:%s\n", filename, cache->versions[i].uid, ip, port);
-                    found = 1;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (!found) {
-        printf("No available publisher found for '%s'\n", filename);
-    }
-}
-
 static int read_rgt_header(int tcp_fd, char *status, long *fsize) {
     char header[128];
     int total = 0;

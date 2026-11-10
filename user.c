@@ -213,8 +213,6 @@ int main(int argc, char *argv[]) {
                 handle_list(fd, res, num_args);
             } else if (strcmp(op, "versions") == 0) {
                 handle_versions(dsip, dsport, arg1, num_args, &versions_cache);
-            } else if (strcmp(op, "where") == 0) {
-                handle_where(fd, res, dsip, dsport, &versions_cache, arg1, arg2, num_args);
             } else if (strcmp(op, "get") == 0) {
                 handle_get(fd, res, dsip, dsport, &versions_cache, arg1, arg2, num_args);
             } else if (strcmp(op, "exit") == 0) {

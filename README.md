@@ -21,10 +21,6 @@ remove testfile.txt
 # Versões (TCP com DS)
 versions testfile.txt
 
-# Localizar Recurso / Peer (UDP com DS)
-where testfile.txt
-where testfile.txt 157498
-
 # Download de Ficheiro (TCP Peer-to-Peer)
 get testfile.txt
 get testfile.txt 157498
