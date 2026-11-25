@@ -32,4 +32,4 @@ get testfile.txt 157498
 
 # No segundo terminal (User 2):
 ./user -m 58001
-# Executar 'versions <ficheiro>', 'where <ficheiro>' ou 'get <ficheiro>' para transferir
+# Executar 'versions <ficheiro>' ou 'get <ficheiro>' para transferir
