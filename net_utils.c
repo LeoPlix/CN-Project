@@ -14,7 +14,7 @@ int read_tcp_line(int fd, char *buffer, int max_len) {
         } else {
             if (errno == EINTR) continue;
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                fprintf(stderr, "Error: TCP read timed out\n");
+                fprintf(stderr, "TCP read timeout\n");
             } else {
                 perror("read");
             }
@@ -75,7 +75,7 @@ int init_udp_client(const char *ip, const char *port, int *fd, struct addrinfo *
     hints.ai_socktype = SOCK_DGRAM;
 
     if (getaddrinfo(ip, port, &hints, res) != 0) {
-        fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
+        fprintf(stderr, "Failed to resolve DS address\n");
         close(*fd);
         *fd = -1;
         return -1;

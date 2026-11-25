@@ -14,7 +14,7 @@ static int check_sigint_exit(SessionState *session, int *need_prompt) {
     g_got_sigint = 0;
 
     if (session->logged_in) {
-        printf("\nError: Logout before exiting\n");
+        printf("\nLogout before exiting\n");
         if (need_prompt) *need_prompt = 1;
         return 0;
     } else {
@@ -33,25 +33,25 @@ int main(int argc, char *argv[]) {
             if (i + 1 < argc) {
                 peerport = argv[++i];
             } else {
-                fprintf(stderr, "Error: Missing value for -m\n");
+                fprintf(stderr, "Missing value for -m\n");
                 exit(1);
             }
         } else if (strcmp(argv[i], "-n") == 0) {
             if (i + 1 < argc) {
                 dsip = argv[++i];
             } else {
-                fprintf(stderr, "Error: Missing value for -n\n");
+                fprintf(stderr, "Missing value for -n\n");
                 exit(1);
             }
         } else if (strcmp(argv[i], "-p") == 0) {
             if (i + 1 < argc) {
                 dsport = argv[++i];
             } else {
-                fprintf(stderr, "Error: Missing value for -p\n");
+                fprintf(stderr, "Missing value for -p\n");
                 exit(1);
             }
         } else {
-            fprintf(stderr, "Error: Unknown argument '%s'\n", argv[i]);
+            fprintf(stderr, "Unknown argument: %s\n", argv[i]);
             fprintf(stderr, "Usage: %s -m <peerport> [-n <DSIP>] [-p <DSport>]\n", argv[0]);
             exit(1);
         }
@@ -63,12 +63,12 @@ int main(int argc, char *argv[]) {
     }
 
     if (!is_valid_port(peerport)) {
-        fprintf(stderr, "Error: Invalid peerport '%s' (must be integer between 1 and 65535)\n", peerport);
+        fprintf(stderr, "Invalid peerport: %s\n", peerport);
         exit(1);
     }
 
     if (!is_valid_port(dsport)) {
-        fprintf(stderr, "Error: Invalid DSport '%s' (must be integer between 1 and 65535)\n", dsport);
+        fprintf(stderr, "Invalid DSport: %s\n", dsport);
         exit(1);
     }
 
@@ -93,14 +93,14 @@ int main(int argc, char *argv[]) {
 
     int tcp_server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (tcp_server_fd == -1) {
-        perror("socket TCP server");
+        perror("socket");
         close_udp_client(fd, res);
         exit(1);
     }
 
     int opt = 1;
     if (setsockopt(tcp_server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        perror("setsockopt SO_REUSEADDR");
+        perror("setsockopt");
     }
 
     struct sockaddr_in server_addr;
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     server_addr.sin_port = htons((uint16_t)atoi(peerport));
 
     if (bind(tcp_server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        perror("bind peerport");
+        perror("bind");
         close(tcp_server_fd);
         close_udp_client(fd, res);
         exit(1);
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
             if (fgets(command, sizeof(command), stdin) == NULL) {
                 if (check_sigint_exit(&session, &need_prompt)) break;
                 if (session.logged_in) {
-                    printf("Error: Logout before exiting\n");
+                    printf("Logout before exiting\n");
                     need_prompt = 1;
                     continue;
                 }
@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
                 if (num_args != 1) {
                     printf("Usage: exit\n");
                 } else if (session.logged_in) {
-                    printf("Error: Logout before exiting\n");
+                    printf("Logout before exiting\n");
                 } else {
                     break;
                 }

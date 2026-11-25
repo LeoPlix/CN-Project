@@ -29,9 +29,9 @@ static int send_udp_msg(int fd, struct addrinfo *res, const char *msg, char *rep
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             retries++;
             if (retries < max_retries) {
-                printf("Timeout: Retrying... (attempt %d of %d)\n", retries + 1, max_retries);
+                printf("Request timed out, retrying (%d/%d)...\n", retries + 1, max_retries);
             } else {
-                printf("Error: Server response timed out after %d attempts\n", max_retries);
+                printf("Server timed out after %d attempts\n", max_retries);
                 return -1;
             }
         } else {
@@ -46,7 +46,7 @@ void handle_login(int fd, struct addrinfo *res, SessionState *session, const cha
     char buffer[MAX_BUFFER];
 
     if (session->logged_in) {
-        printf("Error: Already logged in\n");
+        printf("Already logged in\n");
         return;
     }
     if (num_args != 3) {
@@ -54,11 +54,11 @@ void handle_login(int fd, struct addrinfo *res, SessionState *session, const cha
         return;
     }
     if (!is_valid_uid(arg1)) {
-        printf("Error: Invalid UID (must be exactly 6 decimal digits)\n");
+        printf("Invalid UID\n");
         return;
     }
     if (!is_valid_password(arg2)) {
-        printf("Error: Invalid password (must be exactly 8 alphanumeric characters)\n");
+        printf("Invalid password\n");
         return;
     }
 
@@ -66,7 +66,7 @@ void handle_login(int fd, struct addrinfo *res, SessionState *session, const cha
     if (send_udp_msg(fd, res, buffer, buffer, sizeof(buffer)) == -1) return;
 
     if (strncmp(buffer, "RLI OK", 6) == 0) {
-        printf("Successful login\n");
+        printf("Login successful\n");
         session->logged_in = 1;
         strncpy(session->uid, arg1, sizeof(session->uid) - 1);
         session->uid[sizeof(session->uid) - 1] = '\0';
@@ -80,11 +80,11 @@ void handle_login(int fd, struct addrinfo *res, SessionState *session, const cha
         strncpy(session->pass, arg2, sizeof(session->pass) - 1);
         session->pass[sizeof(session->pass) - 1] = '\0';
     } else if (strncmp(buffer, "RLI NOK", 7) == 0) {
-        printf("Incorrect login attempt\n");
+        printf("Invalid login\n");
     } else if (strncmp(buffer, "RLI ERR", 7) == 0) {
-        printf("Error: Protocol syntax error\n");
+        printf("Protocol error\n");
     } else {
-        printf("Unexpected response: %s\n", buffer);
+        printf("Unexpected reply: %s\n", buffer);
     }
 }
 
@@ -96,7 +96,7 @@ void handle_logout(int fd, struct addrinfo *res, SessionState *session, int num_
         return;
     }
     if (!session->logged_in) {
-        printf("Error: Not logged in\n");
+        printf("Not logged in\n");
         return;
     }
 
@@ -104,26 +104,26 @@ void handle_logout(int fd, struct addrinfo *res, SessionState *session, int num_
     if (send_udp_msg(fd, res, buffer, buffer, sizeof(buffer)) == -1) return;
 
     if (strncmp(buffer, "RLO OK", 6) == 0) {
-        printf("Successful logout\n");
+        printf("Logout successful\n");
         session->logged_in = 0;
         session->uid[0] = '\0';
         session->pass[0] = '\0';
     } else if (strncmp(buffer, "RLO NLG", 7) == 0) {
-        printf("Error: User not logged in\n");
+        printf("User not logged in\n");
         session->logged_in = 0;
         session->uid[0] = '\0';
         session->pass[0] = '\0';
     } else if (strncmp(buffer, "RLO UNR", 7) == 0) {
-        printf("Error: Unknown user\n");
+        printf("Unknown user\n");
         session->logged_in = 0;
         session->uid[0] = '\0';
         session->pass[0] = '\0';
     } else if (strncmp(buffer, "RLO WRP", 7) == 0) {
-        printf("Error: Incorrect password\n");
+        printf("Wrong password\n");
     } else if (strncmp(buffer, "RLO ERR", 7) == 0) {
-        printf("Error: Protocol syntax error\n");
+        printf("Protocol error\n");
     } else {
-        printf("Unexpected response: %s\n", buffer);
+        printf("Unexpected reply: %s\n", buffer);
     }
 }
 
@@ -135,7 +135,7 @@ void handle_unregister(int fd, struct addrinfo *res, SessionState *session, int 
         return;
     }
     if (!session->logged_in) {
-        printf("Error: Not logged in\n");
+        printf("Not logged in\n");
         return;
     }
 
@@ -143,26 +143,26 @@ void handle_unregister(int fd, struct addrinfo *res, SessionState *session, int 
     if (send_udp_msg(fd, res, buffer, buffer, sizeof(buffer)) == -1) return;
 
     if (strncmp(buffer, "RUR OK", 6) == 0) {
-        printf("Successful unregister\n");
+        printf("User unregistered\n");
         session->logged_in = 0;
         session->uid[0] = '\0';
         session->pass[0] = '\0';
     } else if (strncmp(buffer, "RUR NOK", 7) == 0) {
-        printf("Error: User not logged in\n");
+        printf("User not logged in\n");
         session->logged_in = 0;
         session->uid[0] = '\0';
         session->pass[0] = '\0';
     } else if (strncmp(buffer, "RUR UNR", 7) == 0) {
-        printf("Error: Unknown user\n");
+        printf("Unknown user\n");
         session->logged_in = 0;
         session->uid[0] = '\0';
         session->pass[0] = '\0';
     } else if (strncmp(buffer, "RUR WRP", 7) == 0) {
-        printf("Error: Incorrect password\n");
+        printf("Wrong password\n");
     } else if (strncmp(buffer, "RUR ERR", 7) == 0) {
-        printf("Error: Protocol syntax error\n");
+        printf("Protocol error\n");
     } else {
-        printf("Unexpected response: %s\n", buffer);
+        printf("Unexpected reply: %s\n", buffer);
     }
 }
 
@@ -170,7 +170,7 @@ void handle_publish(int fd, struct addrinfo *res, SessionState *session, const c
     char buffer[MAX_BUFFER];
 
     if (!session->logged_in) {
-        printf("Error: Not logged in\n");
+        printf("Not logged in\n");
         return;
     }
     if (num_args != 3) {
@@ -178,26 +178,26 @@ void handle_publish(int fd, struct addrinfo *res, SessionState *session, const c
         return;
     }
     if (!is_valid_filename(filename)) {
-        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
+        printf("Invalid filename\n");
         return;
     }
     if (!is_valid_label(label)) {
-        printf("Error: Invalid label (1-20 characters: letters, digits, '-', '_')\n");
+        printf("Invalid label\n");
         return;
     }
 
     struct stat st;
     if (stat(filename, &st) != 0) {
-        printf("Error: File '%s' not found\n", filename);
+        printf("File not found: %s\n", filename);
         return;
     }
     if (!S_ISREG(st.st_mode)) {
-        printf("Error: '%s' is not a regular file\n", filename);
+        printf("Not a regular file: %s\n", filename);
         return;
     }
     long fsize = st.st_size;
     if (fsize < 0 || fsize > 10000000) {
-        printf("Error: File exceeds max size (10MB)\n");
+        printf("File too large (max 10MB)\n");
         return;
     }
 
@@ -205,19 +205,19 @@ void handle_publish(int fd, struct addrinfo *res, SessionState *session, const c
     if (send_udp_msg(fd, res, buffer, buffer, sizeof(buffer)) == -1) return;
 
     if (strncmp(buffer, "RPB OK", 6) == 0) {
-        printf("Successful publication\n");
+        printf("Published %s\n", filename);
     } else if (strncmp(buffer, "RPB NLG", 7) == 0) {
-        printf("Error: User not logged in\n");
+        printf("User not logged in\n");
     } else if (strncmp(buffer, "RPB UNR", 7) == 0) {
-        printf("Error: Unknown user\n");
+        printf("Unknown user\n");
     } else if (strncmp(buffer, "RPB WRP", 7) == 0) {
-        printf("Error: Incorrect password\n");
+        printf("Wrong password\n");
     } else if (strncmp(buffer, "RPB NOK", 7) == 0) {
-        printf("Error: Unsuccessful publication\n");
+        printf("Failed to publish %s\n", filename);
     } else if (strncmp(buffer, "RPB ERR", 7) == 0) {
-        printf("Error: Protocol syntax error\n");
+        printf("Protocol error\n");
     } else {
-        printf("Unexpected response: %s\n", buffer);
+        printf("Unexpected reply: %s\n", buffer);
     }
 }
 
@@ -225,7 +225,7 @@ void handle_remove(int fd, struct addrinfo *res, SessionState *session, const ch
     char buffer[MAX_BUFFER];
 
     if (!session->logged_in) {
-        printf("Error: Not logged in\n");
+        printf("Not logged in\n");
         return;
     }
     if (num_args != 2) {
@@ -233,7 +233,7 @@ void handle_remove(int fd, struct addrinfo *res, SessionState *session, const ch
         return;
     }
     if (!is_valid_filename(filename)) {
-        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
+        printf("Invalid filename\n");
         return;
     }
 
@@ -241,19 +241,19 @@ void handle_remove(int fd, struct addrinfo *res, SessionState *session, const ch
     if (send_udp_msg(fd, res, buffer, buffer, sizeof(buffer)) == -1) return;
 
     if (strncmp(buffer, "RRM OK", 6) == 0) {
-        printf("Successful removal\n");
+        printf("Removed %s\n", filename);
     } else if (strncmp(buffer, "RRM NOK", 7) == 0) {
-        printf("Error: Resource not found\n");
+        printf("Resource not found\n");
     } else if (strncmp(buffer, "RRM NLG", 7) == 0) {
-        printf("Error: User not logged in\n");
+        printf("User not logged in\n");
     } else if (strncmp(buffer, "RRM UNR", 7) == 0) {
-        printf("Error: Unknown user\n");
+        printf("Unknown user\n");
     } else if (strncmp(buffer, "RRM WRP", 7) == 0) {
-        printf("Error: Incorrect password\n");
+        printf("Wrong password\n");
     } else if (strncmp(buffer, "RRM ERR", 7) == 0) {
-        printf("Error: Protocol syntax error\n");
+        printf("Protocol error\n");
     } else {
-        printf("Unexpected response: %s\n", buffer);
+        printf("Unexpected reply: %s\n", buffer);
     }
 }
 
@@ -271,11 +271,11 @@ void handle_list(int fd, struct addrinfo *res, int num_args) {
     if (strncmp(buffer, "RLS NOK", 7) == 0) {
         printf("No resources available\n");
     } else if (strncmp(buffer, "RLS OK", 6) == 0) {
-        printf("Available resources:\n");
+        printf("Resources:\n");
         char *token = strtok(buffer + 6, " \r\n\t");
         int count = 0;
         while (token != NULL) {
-            printf(" - %s\n", token);
+            printf("  %s\n", token);
             count++;
             token = strtok(NULL, " \r\n\t");
         }
@@ -283,9 +283,9 @@ void handle_list(int fd, struct addrinfo *res, int num_args) {
             printf("No resources available\n");
         }
     } else if (strncmp(buffer, "RLS ERR", 7) == 0) {
-        printf("Error: Protocol syntax error\n");
+        printf("Protocol error\n");
     } else {
-        printf("Unexpected response: %s\n", buffer);
+        printf("Unexpected reply: %s\n", buffer);
     }
 }
 
@@ -308,7 +308,7 @@ static int fetch_versions(const char *dsip, const char *dsport, const char *file
     hints_tcp.ai_socktype = SOCK_STREAM;
 
     if (getaddrinfo(dsip, dsport, &hints_tcp, &res_tcp) != 0) {
-        if (print_output) fprintf(stderr, "Error: Failed to resolve Directory Server address\n");
+        if (print_output) fprintf(stderr, "Failed to resolve DS address\n");
         close(tcp_fd);
         return -1;
     }
@@ -332,12 +332,12 @@ static int fetch_versions(const char *dsip, const char *dsport, const char *file
     int res = -1;
     if (n > 0) {
         if (strncmp(buffer, "RVR NOK", 7) == 0) {
-            if (print_output) printf("No versions available for '%s'\n", filename);
+            if (print_output) printf("No versions found for %s\n", filename);
             if (cache) cache->count = 0;
             res = 0;
         } else if (strncmp(buffer, "RVR OK", 6) == 0) {
             if (print_output) {
-                printf("Available versions for '%s':\n", filename);
+                printf("Versions for %s:\n", filename);
                 printf("%-8s %-10s %-16s %-20s %s\n", "UID", "Size", "Label", "Date", "Status");
             }
             char *ptr = buffer + 6;
@@ -408,16 +408,16 @@ static int fetch_versions(const char *dsip, const char *dsport, const char *file
                 }
             }
             if (count == 0 && print_output) {
-                printf("No versions available for '%s'\n", filename);
+                printf("No versions found for %s\n", filename);
             }
             res = count;
         } else if (strncmp(buffer, "RVR ERR", 7) == 0) {
-            if (print_output) printf("Error: Protocol syntax error\n");
+            if (print_output) printf("Protocol error\n");
         } else {
-            if (print_output) printf("Unexpected response: %s\n", buffer);
+            if (print_output) printf("Unexpected reply: %s\n", buffer);
         }
     } else {
-        if (print_output) printf("Error: Failed to receive response from DS\n");
+        if (print_output) printf("No response from DS\n");
     }
 
     freeaddrinfo(res_tcp);
@@ -431,7 +431,7 @@ void handle_versions(const char *dsip, const char *dsport, const char *filename,
         return;
     }
     if (!is_valid_filename(filename)) {
-        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
+        printf("Invalid filename\n");
         return;
     }
 
@@ -460,16 +460,16 @@ static int query_whr(int fd, struct addrinfo *res, const char *filename, const c
                 return 0;
             }
         }
-        if (print_errors) printf("Error: Invalid response format from DS\n");
+        if (print_errors) printf("Invalid response from DS\n");
         return -1;
     } else if (strncmp(buffer, "RWH NOK", 7) == 0) {
-        if (print_errors) printf("Resource or publisher not available\n");
+        if (print_errors) printf("Resource or peer unavailable\n");
         return -1;
     } else if (strncmp(buffer, "RWH ERR", 7) == 0) {
-        if (print_errors) printf("Error: Protocol syntax error\n");
+        if (print_errors) printf("Protocol error\n");
         return -1;
     } else {
-        if (print_errors) printf("Unexpected response: %s\n", buffer);
+        if (print_errors) printf("Unexpected reply: %s\n", buffer);
         return -1;
     }
 }
@@ -531,7 +531,7 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
         return;
     }
     if (!is_valid_filename(filename)) {
-        printf("Error: Invalid filename (max 24 characters, format 'name.ext' with 3-character extension)\n");
+        printf("Invalid filename\n");
         return;
     }
 
@@ -541,7 +541,7 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
 
     if (num_args == 3) {
         if (!is_valid_uid(arg_uid)) {
-            printf("Error: Invalid UID (must be exactly 6 decimal digits)\n");
+            printf("Invalid UID\n");
             return;
         }
         if (query_whr(udp_fd, ds_res, filename, arg_uid, target_ip, target_port, 1) == 0) {
@@ -566,7 +566,7 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
         }
 
         if (!peer_found) {
-            printf("Error: No available peer found for '%s'\n", filename);
+            printf("No available peer for %s\n", filename);
             return;
         }
     }
@@ -587,13 +587,13 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
     hints_peer.ai_socktype = SOCK_STREAM;
 
     if (getaddrinfo(target_ip, target_port, &hints_peer, &res_peer) != 0) {
-        fprintf(stderr, "Error: Failed to resolve peer address (%s:%s)\n", target_ip, target_port);
+        fprintf(stderr, "Failed to resolve peer %s:%s\n", target_ip, target_port);
         close(tcp_fd);
         return;
     }
 
     if (connect(tcp_fd, res_peer->ai_addr, res_peer->ai_addrlen) == -1) {
-        fprintf(stderr, "Error: Failed to connect to peer at %s:%s\n", target_ip, target_port);
+        fprintf(stderr, "Failed to connect to peer %s:%s\n", target_ip, target_port);
         freeaddrinfo(res_peer);
         close(tcp_fd);
         return;
@@ -603,7 +603,7 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
     char req[64];
     snprintf(req, sizeof(req), "GET %s\n", filename);
     if (write_all(tcp_fd, req, strlen(req)) == -1) {
-        fprintf(stderr, "Error: Failed to send request to peer\n");
+        fprintf(stderr, "Failed to send request to peer\n");
         close(tcp_fd);
         return;
     }
@@ -611,27 +611,27 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
     char status[16] = "";
     long fsize = 0;
     if (read_rgt_header(tcp_fd, status, &fsize) != 0) {
-        printf("Error: Failed to read response from peer\n");
+        printf("Failed to read peer response\n");
         close(tcp_fd);
         return;
     }
 
     if (strcmp(status, "NOK") == 0) {
-        printf("File '%s' not available at peer\n", filename);
+        printf("File %s not available on peer\n", filename);
         close(tcp_fd);
         return;
     } else if (strcmp(status, "ERR") == 0) {
-        printf("Error: Peer returned error\n");
+        printf("Peer returned an error\n");
         close(tcp_fd);
         return;
     } else if (strcmp(status, "OK") != 0) {
-        printf("Unexpected response from peer\n");
+        printf("Unexpected peer response\n");
         close(tcp_fd);
         return;
     }
 
     if (fsize < 0 || fsize > 10000000) {
-        printf("Error: Invalid file size (%ld) from peer\n", fsize);
+        printf("Invalid file size: %ld\n", fsize);
         close(tcp_fd);
         return;
     }
@@ -674,9 +674,9 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
 
     if (transfer_err || remaining > 0) {
         unlink(filename);
-        printf("Error: File transfer incomplete (received %ld of %ld bytes)\n", fsize - remaining, fsize);
+        printf("Transfer incomplete (%ld/%ld bytes)\n", fsize - remaining, fsize);
     } else {
-        printf("File '%s' (%ld bytes) successfully received and stored locally\n", filename, fsize);
+        printf("Downloaded %s (%ld bytes)\n", filename, fsize);
     }
 }
 
