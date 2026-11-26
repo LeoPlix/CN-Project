@@ -2,27 +2,6 @@
 #include "net_utils.h"
 #include "user_commands.h"
 
-static volatile sig_atomic_t g_got_sigint = 0;
-
-static void sig_handler(int sig) {
-    (void)sig;
-    g_got_sigint++;
-}
-
-static int check_sigint_exit(SessionState *session, int *need_prompt) {
-    if (!g_got_sigint) return 0;
-    g_got_sigint = 0;
-
-    if (session->logged_in) {
-        printf("\nError: Logout before exiting\n");
-        if (need_prompt) *need_prompt = 1;
-        return 0;
-    } else {
-        printf("\n");
-        return 1;
-    }
-}
-
 int main(int argc, char *argv[]) {
     char *peerport = NULL;
     char *dsip = DEFAULT_DS_IP;
@@ -75,14 +54,6 @@ int main(int argc, char *argv[]) {
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);
 
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = sig_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-
     int fd;
     struct addrinfo *res = NULL;
     char command[MAX_BUFFER];
@@ -134,8 +105,6 @@ int main(int argc, char *argv[]) {
     int need_prompt = 1;
 
     while (1) {
-        if (check_sigint_exit(&session, &need_prompt)) break;
-
         if (need_prompt) {
             printf("> ");
             fflush(stdout);
@@ -150,10 +119,7 @@ int main(int argc, char *argv[]) {
 
         int activity = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
         if (activity < 0) {
-            if (errno == EINTR) {
-                if (check_sigint_exit(&session, &need_prompt)) break;
-                continue;
-            }
+            if (errno == EINTR) continue;
             perror("select");
             break;
         }
@@ -185,12 +151,6 @@ int main(int argc, char *argv[]) {
 
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
             if (fgets(command, sizeof(command), stdin) == NULL) {
-                if (check_sigint_exit(&session, &need_prompt)) break;
-                if (session.logged_in) {
-                    printf("Error: Logout before exiting\n");
-                    need_prompt = 1;
-                    continue;
-                }
                 break;
             }
             need_prompt = 1;
@@ -214,7 +174,7 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(op, "versions") == 0) {
                 handle_versions(dsip, dsport, arg1, num_args, &versions_cache);
             } else if (strcmp(op, "get") == 0) {
-                handle_get(fd, res, dsip, dsport, &versions_cache, arg1, arg2, num_args);
+                handle_get(fd, res, &versions_cache, arg1, num_args);
             } else if (strcmp(op, "exit") == 0) {
                 if (num_args != 1) {
                     printf("Usage: exit\n");

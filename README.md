@@ -23,7 +23,6 @@ versions testfile.txt
 
 # Download de Ficheiro (TCP Peer-to-Peer)
 get testfile.txt
-get testfile.txt 157498
 
 # Para testes multi-peer da fase III:
 # No primeiro terminal (User 1):

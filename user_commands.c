@@ -525,9 +525,9 @@ static int read_rgt_header(int tcp_fd, char *status, long *fsize) {
     return -1;
 }
 
-void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const char *dsport, VersionsCache *v_cache, const char *filename, const char *arg_uid, int num_args) {
-    if (num_args < 2 || num_args > 3) {
-        printf("Usage: get <filename> [UID]\n");
+void handle_get(int udp_fd, struct addrinfo *ds_res, VersionsCache *v_cache, const char *filename, int num_args) {
+    if (num_args != 2) {
+        printf("Usage: get <filename>\n");
         return;
     }
     if (!is_valid_filename(filename)) {
@@ -535,40 +535,27 @@ void handle_get(int udp_fd, struct addrinfo *ds_res, const char *dsip, const cha
         return;
     }
 
+    if (!v_cache || strcmp(v_cache->filename, filename) != 0 || v_cache->count == 0) {
+        printf("Error: No versions cached for '%s'. Run 'versions %s' first\n", filename, filename);
+        return;
+    }
+
     char target_ip[64] = "";
     char target_port[16] = "";
     int peer_found = 0;
 
-    if (num_args == 3) {
-        if (!is_valid_uid(arg_uid)) {
-            printf("Error: Invalid UID (must be exactly 6 decimal digits)\n");
-            return;
-        }
-        if (query_whr(udp_fd, ds_res, filename, arg_uid, target_ip, target_port, 1) == 0) {
-            peer_found = 1;
-        } else {
-            return;
-        }
-    } else {
-        if (!v_cache || strcmp(v_cache->filename, filename) != 0 || v_cache->count == 0) {
-            fetch_versions(dsip, dsport, filename, v_cache, 0);
-        }
-
-        if (v_cache && strcmp(v_cache->filename, filename) == 0 && v_cache->count > 0) {
-            for (int i = 0; i < v_cache->count; i++) {
-                if (strcmp(v_cache->versions[i].avail, "AVL") == 0) {
-                    if (query_whr(udp_fd, ds_res, filename, v_cache->versions[i].uid, target_ip, target_port, 0) == 0) {
-                        peer_found = 1;
-                        break;
-                    }
-                }
+    for (int i = 0; i < v_cache->count; i++) {
+        if (strcmp(v_cache->versions[i].avail, "AVL") == 0) {
+            if (query_whr(udp_fd, ds_res, filename, v_cache->versions[i].uid, target_ip, target_port, 0) == 0) {
+                peer_found = 1;
+                break;
             }
         }
+    }
 
-        if (!peer_found) {
-            printf("Error: No available peer found for '%s'\n", filename);
-            return;
-        }
+    if (!peer_found) {
+        printf("Error: No available peer found for '%s'\n", filename);
+        return;
     }
 
     int tcp_fd = socket(AF_INET, SOCK_STREAM, 0);

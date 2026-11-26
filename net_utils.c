@@ -41,22 +41,6 @@ int write_all(int fd, const void *buf, size_t len) {
     return 0;
 }
 
-int read_all(int fd, void *buf, size_t len) {
-    size_t total = 0;
-    char *p = (char *)buf;
-    while (total < len) {
-        ssize_t n = read(fd, p + total, len - total);
-        if (n <= 0) {
-            if (n < 0 && (errno == EINTR || errno == EAGAIN)) {
-                continue;
-            }
-            return -1;
-        }
-        total += (size_t)n;
-    }
-    return 0;
-}
-
 int init_udp_client(const char *ip, const char *port, int *fd, struct addrinfo **res) {
     *fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (*fd == -1) {
