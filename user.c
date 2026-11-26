@@ -72,9 +72,11 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    // Ignore SIGPIPE on closed sockets and reap forked child processes automatically
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);
 
+    // Omit SA_RESTART so SIGINT/SIGTERM interrupt select() for a clean exit
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = sig_handler;
@@ -128,8 +130,8 @@ int main(int argc, char *argv[]) {
     strncpy(session.peerport, peerport, sizeof(session.peerport) - 1);
     session.peerport[sizeof(session.peerport) - 1] = '\0';
 
-    VersionsCache versions_cache;
-    memset(&versions_cache, 0, sizeof(versions_cache));
+    // Disable stdin buffering so fgets() does not hold unread lines from select()
+    setvbuf(stdin, NULL, _IONBF, 0);
 
     int need_prompt = 1;
 
@@ -158,7 +160,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // Lidar com pedidos de transferência de ficheiros usando processos paralelos
+        // Handle incoming P2P file transfer requests concurrently using fork()
         if (FD_ISSET(tcp_server_fd, &read_fds)) {
             struct sockaddr_in client_addr;
             socklen_t client_len = sizeof(client_addr);
@@ -170,14 +172,13 @@ int main(int argc, char *argv[]) {
                     perror("fork");
                     close(conn_fd);
                 } else if (pid == 0) {
-                    // Processo Filho: gere o download
                     signal(SIGINT, SIG_IGN);
-                    close(tcp_server_fd); // Filho não precisa do socket de escuta
+                    signal(SIGTERM, SIG_IGN);
+                    close(tcp_server_fd);
                     close_udp_client(fd, res);
                     handle_peer_request(conn_fd);
-                    exit(0); // Termina imediatamente após a transferência
+                    exit(0);
                 } else {
-                    // Processo Pai: fecha o socket do cliente e volta para o select()
                     close(conn_fd);
                 }
             }
@@ -186,10 +187,18 @@ int main(int argc, char *argv[]) {
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
             if (fgets(command, sizeof(command), stdin) == NULL) {
                 if (check_sigint_exit(&session, &need_prompt)) break;
-                if (session.logged_in) {
-                    printf("Logout before exiting\n");
+                if (ferror(stdin) && errno == EINTR) {
+                    clearerr(stdin);
+                    continue;
+                }
+                if (session.logged_in && isatty(STDIN_FILENO)) {
+                    clearerr(stdin);
+                    printf("\nLogout before exiting\n");
                     need_prompt = 1;
                     continue;
+                }
+                if (session.logged_in) {
+                    printf("Logout before exiting\n");
                 }
                 break;
             }
@@ -212,9 +221,9 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(op, "list") == 0) {
                 handle_list(fd, res, num_args);
             } else if (strcmp(op, "versions") == 0) {
-                handle_versions(dsip, dsport, arg1, num_args, &versions_cache);
+                handle_versions(dsip, dsport, arg1, num_args);
             } else if (strcmp(op, "get") == 0) {
-                handle_get(fd, res, dsip, dsport, &versions_cache, arg1, arg2, num_args);
+                handle_get(fd, res, dsip, dsport, arg1, num_args);
             } else if (strcmp(op, "exit") == 0) {
                 if (num_args != 1) {
                     printf("Usage: exit\n");

@@ -29,18 +29,4 @@ typedef struct {
     char peerport[16];
 } SessionState;
 
-typedef struct {
-    char uid[7];
-    long size;
-    char label[21];
-    char time[32];
-    char avail[4];
-} VersionEntry;
-
-typedef struct {
-    char filename[25];
-    int count;
-    VersionEntry versions[50];
-} VersionsCache;
-
 #endif // COMMON_H

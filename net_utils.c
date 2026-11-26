@@ -1,5 +1,6 @@
 #include "net_utils.h"
 
+// Read a '\n'-terminated line byte-by-byte to avoid consuming following binary data
 int read_tcp_line(int fd, char *buffer, int max_len) {
     int n, total = 0;
     char c;
@@ -25,6 +26,7 @@ int read_tcp_line(int fd, char *buffer, int max_len) {
     return total;
 }
 
+// Ensure all bytes are written even if write() performs partial writes
 int write_all(int fd, const void *buf, size_t len) {
     size_t total = 0;
     const char *p = (const char *)buf;
@@ -41,6 +43,7 @@ int write_all(int fd, const void *buf, size_t len) {
     return 0;
 }
 
+// Ensure exact len bytes are read from TCP socket
 int read_all(int fd, void *buf, size_t len) {
     size_t total = 0;
     char *p = (char *)buf;

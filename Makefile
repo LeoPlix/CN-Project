@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g
 
-# Variáveis para a execução
+# Execution variables
 PEERPORT = 58000
 
 SRC = user.c net_utils.c user_commands.c
